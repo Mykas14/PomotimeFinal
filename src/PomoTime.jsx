@@ -1,10 +1,19 @@
 // Import necessary libraries and components
 import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
-import { FaPlay, FaPause, FaRedo, FaSkullCrossbones } from 'react-icons/fa';
+import { FaPlay, FaPause, FaRedo, FaSkullCrossbones, FaSun, FaUserCircle } from 'react-icons/fa';
 import { MdFileUpload } from 'react-icons/md';
 import { GiTomato } from 'react-icons/gi';
 import { generateQuiz, generateStudyPlan } from './ai-utils';
+
+const AccentButton = ({ children, onClick, className = '' }) => (
+  <button
+    onClick={onClick}
+    className={`bg-accent hover:bg-accent-dark text-white font-medium rounded-md px-5 py-2 flex items-center gap-2 ${className}`}
+  >
+    {children}
+  </button>
+);
 
 // PomoTime component
 const PomoTime = () => {
@@ -20,6 +29,7 @@ const PomoTime = () => {
   const [tasks, setTasks] = useState(
     JSON.parse(localStorage.getItem('tasks')) || []
   );
+  const [newTaskText, setNewTaskText] = useState('');
 
   // Quiz Generator state
   const [quizData, setQuizData] = useState(null);
@@ -49,11 +59,13 @@ const PomoTime = () => {
   };
 
   // Task List functions
-  const addTask = (task) => {
-    const newTask = { id: Date.now(), text: task, completed: false };
+  const addTask = (taskText) => {
+    if (!taskText || !taskText.trim()) return;
+    const newTask = { id: Date.now(), text: taskText.trim(), completed: false };
     const newTasks = [...tasks, newTask];
     setTasks(newTasks);
     localStorage.setItem('tasks', JSON.stringify(newTasks));
+    setNewTaskText('');
   };
   const deleteTask = (id) => {
     const updatedTasks = tasks.filter((task) => task.id !== id);
@@ -84,21 +96,10 @@ const PomoTime = () => {
     const quiz = await generateQuiz(quizFile);
     setQuizData(quiz);
   };
-  const updateQuizData = (field, value, questionIndex = null) => {
-    if (questionIndex !== null) {
-      setQuizData((prevQuiz) => ({
-        ...prevQuiz,
-        questions: prevQuiz.questions.map((question, index) =>
-          index === questionIndex ? { ...question, [field]: value } : question
-        ),
-      }));
-    } else {
-      setQuizData((prevQuiz) => ({ ...prevQuiz, [field]: value }));
-    }
-  };
 
   // Study Plan Generator functions
   const generateStudyPlanFromQuiz = async () => {
+    if (!quizData) return;
     const plan = await generateStudyPlan(quizData.title, studyDuration);
     setStudyPlan(plan);
     setStudyTopic(quizData.title);
@@ -113,7 +114,7 @@ const PomoTime = () => {
     let interval;
     if (isTimerRunning) {
       interval = setInterval(() => {
-        setTimeRemaining((prevTime) => prevTime - 1);
+        setTimeRemaining((prevTime) => Math.max(prevTime - 1, 0));
       }, 1000);
     }
     return () => clearInterval(interval);
@@ -136,216 +137,209 @@ const PomoTime = () => {
     }
   }, [timeRemaining, timerMode, focusDuration, shortBreakDuration, longBreakDuration]);
 
-  // compute total duration for current mode (in seconds)
-  const currentModeDurationSeconds =
-    (timerMode === 'focus'
-      ? focusDuration
-      : timerMode === 'short-break'
-      ? shortBreakDuration
-      : longBreakDuration) * 60;
+  const minutes = String(Math.floor(timeRemaining / 60)).padStart(2, '0');
+  const seconds = String(timeRemaining % 60).padStart(2, '0');
 
-  // Render the PomoTime application
   return (
-    <div className="flex flex-col md:flex-row h-screen">
-      {/* Pomodoro Timer */}
-      <div className="bg-gray-100 dark:bg-gray-800 p-8 flex-1 flex flex-col items-center justify-center">
-        <div className="relative w-64 h-64 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
-          <div className="text-6xl font-bold text-gray-800 dark:text-gray-200">
-            {Math.floor(timeRemaining / 60)}:{String(timeRemaining % 60).padStart(2, '0')}
+    <div className="min-h-screen bg-neutral-900 text-gray-200">
+      <header className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-accent rounded-full flex items-center justify-center text-white">
+            <GiTomato />
           </div>
-          <div
-            className={`absolute top-0 left-0 w-full h-full rounded-full transform -rotate-90 transition-all duration-300 ease-in-out ${
-              timerMode === 'focus'
-                ? 'bg-red-500'
-                : timerMode === 'short-break'
-                ? 'bg-green-500'
-                : 'bg-blue-500'
-            }`}
-            style={{
-              clipPath: `circle(${(timeRemaining / Math.max(1, currentModeDurationSeconds)) * 100}% at 50% 50%)`,
-            }}
-          />
+          <h1 className="text-xl font-semibold">PomoTime</h1>
         </div>
-        <div className="mt-8 flex space-x-4">
-          {isTimerRunning ? (
-            <button onClick={pauseTimer}>
-              <FaPause className="text-2xl text-gray-800 dark:text-gray-200" />
-            </button>
-          ) : (
-            <button onClick={startTimer}>
-              <FaPlay className="text-2xl text-gray-800 dark:text-gray-200" />
-            </button>
-          )}
-          <button onClick={resetTimer}>
-            <FaRedo className="text-2xl text-gray-800 dark:text-gray-200" />
-          </button>
-          <button onClick={skipTimer}>
-            <FaSkullCrossbones className="text-2xl text-gray-800 dark:text-gray-200" />
-          </button>
+        <div className="flex items-center gap-4 text-gray-300">
+          <button title="Toggle theme" className="p-2 rounded-md hover:bg-gray-800"><FaSun /></button>
+          <button title="Account" className="p-2 rounded-md hover:bg-gray-800"><FaUserCircle /></button>
         </div>
-      </div>
+      </header>
 
-      {/* Task List */}
-      <div className="bg-gray-200 dark:bg-gray-700 p-8 flex-1 flex flex-col">
-        <h2 className="text-2xl font-bold mb-4">Task List</h2>
-        <DragDropContext onDragEnd={reorderTasks}>
-          <Droppable droppableId="tasks">
-            {(provided) => (
-              <div {...provided.droppableProps} ref={provided.innerRef}>
-                {tasks.map((task, index) => (
-                  <Draggable key={task.id} draggableId={String(task.id)} index={index}>
-                    {(provided) => (
-                      <div
-                        {...provided.draggableProps}
-                        {...provided.dragHandleProps}
-                        ref={provided.innerRef}
-                        className={`flex items-center justify-between bg-white dark:bg-gray-800 p-4 mb-2 rounded-md shadow-md ${
-                          task.completed ? 'line-through text-gray-400 dark:text-gray-500' : ''
-                        }`}
-                      >
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            checked={task.completed}
-                            onChange={() => toggleTaskCompletion(task.id)}
-                            className="mr-4"
-                          />
-                          <span>{task.text}</span>
-                        </div>
-                        <button onClick={() => deleteTask(task.id)}>
-                          <FaSkullCrossbones className="text-red-500" />
-                        </button>
-                      </div>
-                    )}
-                  </Draggable>
-                ))}
-                {provided.placeholder}
+      <main className="p-6 max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Left column: Timer (top) and Tasks (bottom) stacked */}
+          <div className="space-y-6">
+            <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+              <div className="flex items-start justify-between">
+                <h2 className="text-lg font-semibold">Pomodoro</h2>
+                <button className="text-gray-400 hover:text-gray-200">⚙️</button>
               </div>
-            )}
-          </Droppable>
-        </DragDropContext>
-        <div className="mt-4">
-          <input
-            type="text"
-            placeholder="Add a new task"
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') {
-                addTask(e.target.value);
-                e.target.value = '';
-              }
-            }}
-            className="w-full bg-white dark:bg-gray-800 p-2 rounded-md shadow-md"
-          />
-        </div>
-      </div>
 
-      {/* Quiz Generator */}
-      <div className="bg-gray-100 dark:bg-gray-800 p-8 flex-1 flex flex-col">
-        <h2 className="text-2xl font-bold mb-4">AI Quiz Generator</h2>
-        <div className="flex items-center justify-center mb-4">
-          <label htmlFor="file-upload" className="cursor-pointer">
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-md shadow-md flex items-center">
-              <MdFileUpload className="text-2xl mr-2" />
-              <span>Upload File</span>
-            </div>
-          </label>
-          <input
-            id="file-upload"
-            type="file"
-            accept=".pdf,.docx,.txt"
-            onChange={handleFileUpload}
-            className="hidden"
-          />
-        </div>
-        <button
-          onClick={generateQuizFromFile}
-          className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-md mb-4"
-        >
-          Generate Quiz
-        </button>
-        {quizData && (
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-md shadow-md">
-            <h3 className="text-xl font-bold mb-2">{quizData.title}</h3>
-            {quizData.questions.map((question, index) => (
-              <div key={index} className="mb-4">
-                <p className="font-bold">{question.question}</p>
-                {question.options.map((option, optionIndex) => (
-                  <div key={optionIndex} className="flex items-center">
-                    <input
-                      type="radio"
-                      name={`question-${index}`}
-                      checked={option === question.answer}
-                      onChange={() => updateQuizData('answer', option, index)}
-                      className="mr-2"
-                    />
-                    <input
-                      type="text"
-                      value={option}
-                      onChange={(e) =>
-                        updateQuizData('options', e.target.value, index)
-                      }
-                      className="w-full bg-gray-100 dark:bg-gray-700 p-2 rounded-md"
-                    />
+              <div className="mt-6 flex flex-col items-center">
+                <div className="relative">
+                  <div className="w-56 h-56 rounded-full border-8 border-gray-700 flex items-center justify-center">
+                    <div className="text-4xl font-bold">{minutes}:{seconds}</div>
                   </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Study Plan Generator */}
-      <div className="bg-gray-200 dark:bg-gray-700 p-8 flex-1 flex flex-col">
-        <h2 className="text-2xl font-bold mb-4">AI Study Plan Generator</h2>
-        <div className="flex items-center mb-4">
-          <input
-            type="text"
-            value={studyTopic}
-            onChange={(e) => setStudyTopic(e.target.value)}
-            placeholder="Enter a topic"
-            className="w-full bg-white dark:bg-gray-800 p-2 rounded-md shadow-md mr-4"
-          />
-          <input
-            type="number"
-            value={studyDuration}
-            onChange={(e) => setStudyDuration(Number(e.target.value))}
-            min="1"
-            max="30"
-            placeholder="Duration (days)"
-            className="w-32 bg-white dark:bg-gray-800 p-2 rounded-md shadow-md"
-          />
-        </div>
-        <button
-          onClick={
-            quizData
-              ? generateStudyPlanFromQuiz
-              : generateStudyPlanFromTopic
-          }
-          className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-md mb-4"
-        >
-          Generate Study Plan
-        </button>
-        {studyPlan.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-md shadow-md">
-            <h3 className="text-xl font-bold mb-2">
-              {quizData ? quizData.title : studyTopic}
-            </h3>
-            <div className="space-y-4">
-              {studyPlan.map((day, index) => (
-                <div key={index}>
-                  <h4 className="font-bold">Day {index + 1}</h4>
-                  <p>{day.topic}</p>
-                  <ul className="list-disc pl-6">
-                    {day.activities.map((activity, activityIndex) => (
-                      <li key={activityIndex}>{activity}</li>
-                    ))}
-                  </ul>
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="text-xs text-gray-400 uppercase mt-36">{timerMode === 'focus' ? 'Focus' : timerMode === 'short-break' ? 'Short Break' : 'Long Break'}</div>
+                  </div>
                 </div>
-              ))}
+
+                <div className="mt-6 flex items-center gap-4">
+                  {isTimerRunning ? (
+                    <AccentButton onClick={pauseTimer}><FaPause /> Pause</AccentButton>
+                  ) : (
+                    <AccentButton onClick={startTimer}><FaPlay /> Start</AccentButton>
+                  )}
+
+                  <button onClick={resetTimer} className="p-3 rounded-md bg-gray-800 border border-gray-700 hover:bg-gray-700">
+                    <FaRedo />
+                  </button>
+                  <button onClick={skipTimer} className="p-3 rounded-md bg-gray-800 border border-gray-700 hover:bg-gray-700">
+                    <FaSkullCrossbones />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+              <h3 className="text-lg font-semibold mb-4">My Tasks</h3>
+              <div className="flex gap-3">
+                <input
+                  className="flex-1 bg-gray-900 border border-gray-700 rounded-md px-4 py-2 focus:outline-none"
+                  placeholder="Add a new task..."
+                  value={newTaskText}
+                  onChange={(e) => setNewTaskText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') addTask(newTaskText);
+                  }}
+                />
+                <button
+                  onClick={() => addTask(newTaskText)}
+                  className="w-10 h-10 rounded-md bg-accent flex items-center justify-center text-white"
+                >
+                  +
+                </button>
+              </div>
+
+              <div className="mt-6">
+                {tasks.length === 0 ? (
+                  <div className="text-center text-gray-400 py-8">No tasks yet. Add one to get started!</div>
+                ) : (
+                  <DragDropContext onDragEnd={reorderTasks}>
+                    <Droppable droppableId="tasks">
+                      {(provided) => (
+                        <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2">
+                          {tasks.map((task, index) => (
+                            <Draggable key={task.id} draggableId={String(task.id)} index={index}>
+                              {(provided) => (
+                                <div
+                                  ref={provided.innerRef}
+                                  {...provided.draggableProps}
+                                  {...provided.dragHandleProps}
+                                  className={`flex items-center justify-between bg-gray-900 p-3 rounded-md border border-gray-700`}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <input type="checkbox" checked={task.completed} onChange={() => toggleTaskCompletion(task.id)} />
+                                    <span className={`${task.completed ? 'line-through text-gray-500' : ''}`}>{task.text}</span>
+                                  </div>
+                                  <button onClick={() => deleteTask(task.id)} className="text-red-400"><FaSkullCrossbones /></button>
+                                </div>
+                              )}
+                            </Draggable>
+                          ))}
+                          {provided.placeholder}
+                        </div>
+                      )}
+                    </Droppable>
+                  </DragDropContext>
+                )}
+              </div>
             </div>
           </div>
-        )}
-      </div>
+
+          {/* Right column: Quiz (top) and Study Plan (bottom) stacked */}
+          <div className="space-y-6">
+            <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+              <h3 className="text-lg font-semibold mb-2">AI Quiz Generator</h3>
+              <p className="text-sm text-gray-400 mb-4">Upload study material to instantly create a quiz.</p>
+
+              <label htmlFor="file-upload" className="block">
+                <div className="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center hover:border-gray-600">
+                  <div className="flex flex-col items-center justify-center gap-3">
+                    <MdFileUpload className="text-3xl text-gray-400" />
+                    <div className="text-gray-300">Drag & drop a file here or click to upload</div>
+                    <div className="text-xs text-gray-500">(PDF, DOCX, TXT supported)</div>
+                    <div className="mt-4">
+                      <input id="file-upload" type="file" accept=".pdf,.docx,.txt" onChange={handleFileUpload} className="hidden" />
+                      <button onClick={generateQuizFromFile} className="px-4 py-2 rounded-md bg-gray-900 border border-gray-700 text-gray-200">Choose File</button>
+                    </div>
+                  </div>
+                </div>
+              </label>
+
+              {quizData && (
+                <div className="mt-4 bg-gray-900 border border-gray-700 rounded-md p-4">
+                  <h4 className="font-semibold">{quizData.title}</h4>
+                  <div className="mt-2 space-y-3">
+                    {quizData.questions.map((q, qi) => (
+                      <div key={qi} className="bg-gray-800 p-3 rounded-md border border-gray-700">
+                        <div className="font-medium">{q.question}</div>
+                        <div className="mt-2 space-y-1">
+                          {q.options.map((opt, oi) => (
+                            <div key={oi} className="flex items-center gap-3">
+                              <input type="radio" name={`q-${qi}`} checked={opt === q.answer} readOnly />
+                              <input className="bg-gray-900 border border-gray-700 rounded-md px-2 py-1 w-full" value={opt} onChange={() => {}} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+              <h3 className="text-lg font-semibold mb-2">AI Study Plan Generator</h3>
+              <p className="text-sm text-gray-400 mb-4">Enter a topic and duration to generate a personalized study schedule.</p>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                <div className="md:col-span-2">
+                  <input
+                    type="text"
+                    value={studyTopic}
+                    onChange={(e) => setStudyTopic(e.target.value)}
+                    placeholder="e.g., 'React Hooks'"
+                    className="w-full bg-gray-900 border border-gray-700 rounded-md px-4 py-2"
+                  />
+                </div>
+                <div className="md:col-span-1">
+                  <input
+                    type="number"
+                    value={studyDuration}
+                    onChange={(e) => setStudyDuration(Number(e.target.value))}
+                    min={1}
+                    max={30}
+                    className="w-full bg-gray-900 border border-gray-700 rounded-md px-4 py-2 text-center"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <AccentButton onClick={quizData ? generateStudyPlanFromQuiz : generateStudyPlanFromTopic} className="w-full">
+                  📅 Generate Plan
+                </AccentButton>
+              </div>
+
+              {studyPlan.length > 0 && (
+                <div className="mt-4 space-y-3">
+                  {studyPlan.map((day, i) => (
+                    <div key={i} className="bg-gray-900 border border-gray-700 rounded-md p-3">
+                      <div className="font-semibold">Day {i + 1} — {day.topic}</div>
+                      <ul className="list-disc pl-6 mt-2 text-sm text-gray-300">
+                        {day.activities.map((act, ai) => (
+                          <li key={ai}>{act}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </main>
     </div>
   );
 };
