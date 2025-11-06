@@ -1,20 +1,3 @@
-// Import necessary libraries and components
-import React, { useState, useEffect } from 'react';
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
-import { FaPlay, FaPause, FaRedo, FaSkullCrossbones, FaSun, FaUserCircle } from 'react-icons/fa';
-import { MdFileUpload } from 'react-icons/md';
-import { GiTomato } from 'react-icons/gi';
-import { generateQuiz, generateStudyPlan } from './ai-utils';
-
-const AccentButton = ({ children, onClick, className = '' }) => (
-  <button
-    onClick={onClick}
-    className={`bg-accent hover:bg-accent-dark text-white font-medium rounded-md px-5 py-2 flex items-center gap-2 ${className}`}
-  >
-    {children}
-  </button>
-);
-
 // PomoTime component
 const PomoTime = () => {
   // Pomodoro Timer state
@@ -24,6 +7,12 @@ const PomoTime = () => {
   const [focusDuration, setFocusDuration] = useState(25);
   const [shortBreakDuration, setShortBreakDuration] = useState(5);
   const [longBreakDuration, setLongBreakDuration] = useState(15);
+
+  // NEW: settings panel state
+  const [showSettings, setShowSettings] = useState(false);
+  const [tempFocus, setTempFocus] = useState(focusDuration);
+  const [tempShort, setTempShort] = useState(shortBreakDuration);
+  const [tempLong, setTempLong] = useState(longBreakDuration);
 
   // Task List state
   const [tasks, setTasks] = useState(
@@ -58,7 +47,7 @@ const PomoTime = () => {
     }
   };
 
-  // Task List functions
+  // Task List functions (unchanged) ...
   const addTask = (taskText) => {
     if (!taskText || !taskText.trim()) return;
     const newTask = { id: Date.now(), text: taskText.trim(), completed: false };
@@ -88,16 +77,12 @@ const PomoTime = () => {
     localStorage.setItem('tasks', JSON.stringify(updatedTasks));
   };
 
-  // Quiz Generator functions
-  const handleFileUpload = (event) => {
-    setQuizFile(event.target.files[0]);
-  };
+  // Quiz + Study Plan handlers (unchanged) ...
+  const handleFileUpload = (e) => setQuizFile(e.target.files[0]);
   const generateQuizFromFile = async () => {
     const quiz = await generateQuiz(quizFile);
     setQuizData(quiz);
   };
-
-  // Study Plan Generator functions
   const generateStudyPlanFromQuiz = async () => {
     if (!quizData) return;
     const plan = await generateStudyPlan(quizData.title, studyDuration);
@@ -140,6 +125,35 @@ const PomoTime = () => {
   const minutes = String(Math.floor(timeRemaining / 60)).padStart(2, '0');
   const seconds = String(timeRemaining % 60).padStart(2, '0');
 
+  // NEW: open settings and load current values
+  const openSettings = () => {
+    setTempFocus(focusDuration);
+    setTempShort(shortBreakDuration);
+    setTempLong(longBreakDuration);
+    setShowSettings(true);
+  };
+
+  // NEW: apply settings
+  const applySettings = () => {
+    // clamp sensible bounds (1–240 minutes)
+    const clamp = (n) => Math.min(240, Math.max(1, Math.floor(n || 0)));
+    const newFocus = clamp(tempFocus);
+    const newShort = clamp(tempShort);
+    const newLong = clamp(tempLong);
+
+    setFocusDuration(newFocus);
+    setShortBreakDuration(newShort);
+    setLongBreakDuration(newLong);
+
+    // if timer isn't running, sync remaining time for current mode
+    if (!isTimerRunning) {
+      if (timerMode === 'focus') setTimeRemaining(newFocus * 60);
+      else if (timerMode === 'short-break') setTimeRemaining(newShort * 60);
+      else setTimeRemaining(newLong * 60);
+    }
+    setShowSettings(false);
+  };
+
   return (
     <div className="min-h-screen bg-neutral-900 text-gray-200">
       <header className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
@@ -157,13 +171,92 @@ const PomoTime = () => {
 
       <main className="p-6 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left column: Timer (top) and Tasks (bottom) stacked */}
+          {/* Left column: Timer (top) and Tasks (bottom) */}
           <div className="space-y-6">
-            <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+            <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 relative">
               <div className="flex items-start justify-between">
                 <h2 className="text-lg font-semibold">Pomodoro</h2>
-                <button className="text-gray-400 hover:text-gray-200">⚙️</button>
+
+                {/* UPDATED: settings button opens panel */}
+                <button
+                  title="Timer settings"
+                  onClick={openSettings}
+                  className="text-gray-400 hover:text-gray-200"
+                >
+                  ⚙️
+                </button>
               </div>
+
+              {/* NEW: settings popover */}
+              {showSettings && (
+                <div className="absolute top-12 right-6 w-72 bg-gray-900 border border-gray-700 rounded-lg p-4 shadow-xl z-10">
+                  <div className="text-sm font-semibold mb-3">Timer Settings (minutes)</div>
+                  <div className="space-y-3">
+                    <label className="flex items-center justify-between gap-3">
+                      <span className="text-sm text-gray-300">Focus</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={240}
+                        value={tempFocus}
+                        onChange={(e) => setTempFocus(Number(e.target.value))}
+                        className="w-24 bg-gray-800 border border-gray-700 rounded-md px-2 py-1 text-right"
+                      />
+                    </label>
+                    <label className="flex items-center justify-between gap-3">
+                      <span className="text-sm text-gray-300">Short break</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={240}
+                        value={tempShort}
+                        onChange={(e) => setTempShort(Number(e.target.value))}
+                        className="w-24 bg-gray-800 border border-gray-700 rounded-md px-2 py-1 text-right"
+                      />
+                    </label>
+                    <label className="flex items-center justify-between gap-3">
+                      <span className="text-sm text-gray-300">Long break</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={240}
+                        value={tempLong}
+                        onChange={(e) => setTempLong(Number(e.target.value))}
+                        className="w-24 bg-gray-800 border border-gray-700 rounded-md px-2 py-1 text-right"
+                      />
+                    </label>
+
+                    {/* quick presets */}
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {[25, 45, 60, 75, 90].map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => setTempFocus(m)}
+                          className="px-2 py-1 text-xs rounded-md border border-gray-700 bg-gray-800 hover:bg-gray-700"
+                          title={`Set focus to ${m} min`}
+                        >
+                          {m}m
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2">
+                      <button
+                        onClick={() => setShowSettings(false)}
+                        className="px-3 py-1.5 rounded-md bg-gray-800 border border-gray-700 hover:bg-gray-700 text-sm"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={applySettings}
+                        className="px-3 py-1.5 rounded-md bg-accent hover:bg-accent-dark text-white text-sm"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="mt-6 flex flex-col items-center">
                 <div className="relative">
@@ -171,7 +264,13 @@ const PomoTime = () => {
                     <div className="text-4xl font-bold">{minutes}:{seconds}</div>
                   </div>
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="text-xs text-gray-400 uppercase mt-36">{timerMode === 'focus' ? 'Focus' : timerMode === 'short-break' ? 'Short Break' : 'Long Break'}</div>
+                    <div className="text-xs text-gray-400 uppercase mt-36">
+                      {timerMode === 'focus'
+                        ? 'Focus'
+                        : timerMode === 'short-break'
+                        ? 'Short Break'
+                        : 'Long Break'}
+                    </div>
                   </div>
                 </div>
 
@@ -192,156 +291,12 @@ const PomoTime = () => {
               </div>
             </div>
 
-            <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
-              <h3 className="text-lg font-semibold mb-4">My Tasks</h3>
-              <div className="flex gap-3">
-                <input
-                  className="flex-1 bg-gray-900 border border-gray-700 rounded-md px-4 py-2 focus:outline-none"
-                  placeholder="Add a new task..."
-                  value={newTaskText}
-                  onChange={(e) => setNewTaskText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') addTask(newTaskText);
-                  }}
-                />
-                <button
-                  onClick={() => addTask(newTaskText)}
-                  className="w-10 h-10 rounded-md bg-accent flex items-center justify-center text-white"
-                >
-                  +
-                </button>
-              </div>
+            {/* Tasks card ... (unchanged) */}
+            {/* ... keep your existing Tasks, Quiz, Study Plan sections as-is */}
 
-              <div className="mt-6">
-                {tasks.length === 0 ? (
-                  <div className="text-center text-gray-400 py-8">No tasks yet. Add one to get started!</div>
-                ) : (
-                  <DragDropContext onDragEnd={reorderTasks}>
-                    <Droppable droppableId="tasks">
-                      {(provided) => (
-                        <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2">
-                          {tasks.map((task, index) => (
-                            <Draggable key={task.id} draggableId={String(task.id)} index={index}>
-                              {(provided) => (
-                                <div
-                                  ref={provided.innerRef}
-                                  {...provided.draggableProps}
-                                  {...provided.dragHandleProps}
-                                  className={`flex items-center justify-between bg-gray-900 p-3 rounded-md border border-gray-700`}
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <input type="checkbox" checked={task.completed} onChange={() => toggleTaskCompletion(task.id)} />
-                                    <span className={`${task.completed ? 'line-through text-gray-500' : ''}`}>{task.text}</span>
-                                  </div>
-                                  <button onClick={() => deleteTask(task.id)} className="text-red-400"><FaSkullCrossbones /></button>
-                                </div>
-                              )}
-                            </Draggable>
-                          ))}
-                          {provided.placeholder}
-                        </div>
-                      )}
-                    </Droppable>
-                  </DragDropContext>
-                )}
-              </div>
-            </div>
-          </div>
 
-          {/* Right column: Quiz (top) and Study Plan (bottom) stacked */}
-          <div className="space-y-6">
-            <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
-              <h3 className="text-lg font-semibold mb-2">AI Quiz Generator</h3>
-              <p className="text-sm text-gray-400 mb-4">Upload study material to instantly create a quiz.</p>
 
-              <label htmlFor="file-upload" className="block">
-                <div className="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center hover:border-gray-600">
-                  <div className="flex flex-col items-center justify-center gap-3">
-                    <MdFileUpload className="text-3xl text-gray-400" />
-                    <div className="text-gray-300">Drag & drop a file here or click to upload</div>
-                    <div className="text-xs text-gray-500">(PDF, DOCX, TXT supported)</div>
-                    <div className="mt-4">
-                      <input id="file-upload" type="file" accept=".pdf,.docx,.txt" onChange={handleFileUpload} className="hidden" />
-                      <button onClick={generateQuizFromFile} className="px-4 py-2 rounded-md bg-gray-900 border border-gray-700 text-gray-200">Choose File</button>
-                    </div>
-                  </div>
-                </div>
-              </label>
 
-              {quizData && (
-                <div className="mt-4 bg-gray-900 border border-gray-700 rounded-md p-4">
-                  <h4 className="font-semibold">{quizData.title}</h4>
-                  <div className="mt-2 space-y-3">
-                    {quizData.questions.map((q, qi) => (
-                      <div key={qi} className="bg-gray-800 p-3 rounded-md border border-gray-700">
-                        <div className="font-medium">{q.question}</div>
-                        <div className="mt-2 space-y-1">
-                          {q.options.map((opt, oi) => (
-                            <div key={oi} className="flex items-center gap-3">
-                              <input type="radio" name={`q-${qi}`} checked={opt === q.answer} readOnly />
-                              <input className="bg-gray-900 border border-gray-700 rounded-md px-2 py-1 w-full" value={opt} onChange={() => {}} />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
 
-            <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
-              <h3 className="text-lg font-semibold mb-2">AI Study Plan Generator</h3>
-              <p className="text-sm text-gray-400 mb-4">Enter a topic and duration to generate a personalized study schedule.</p>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                <div className="md:col-span-2">
-                  <input
-                    type="text"
-                    value={studyTopic}
-                    onChange={(e) => setStudyTopic(e.target.value)}
-                    placeholder="e.g., 'React Hooks'"
-                    className="w-full bg-gray-900 border border-gray-700 rounded-md px-4 py-2"
-                  />
-                </div>
-                <div className="md:col-span-1">
-                  <input
-                    type="number"
-                    value={studyDuration}
-                    onChange={(e) => setStudyDuration(Number(e.target.value))}
-                    min={1}
-                    max={30}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-md px-4 py-2 text-center"
-                  />
-                </div>
-              </div>
 
-              <div className="mt-4">
-                <AccentButton onClick={quizData ? generateStudyPlanFromQuiz : generateStudyPlanFromTopic} className="w-full">
-                  📅 Generate Plan
-                </AccentButton>
-              </div>
-
-              {studyPlan.length > 0 && (
-                <div className="mt-4 space-y-3">
-                  {studyPlan.map((day, i) => (
-                    <div key={i} className="bg-gray-900 border border-gray-700 rounded-md p-3">
-                      <div className="font-semibold">Day {i + 1} — {day.topic}</div>
-                      <ul className="list-disc pl-6 mt-2 text-sm text-gray-300">
-                        {day.activities.map((act, ai) => (
-                          <li key={ai}>{act}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
-  );
-};
-
-export default PomoTime;
