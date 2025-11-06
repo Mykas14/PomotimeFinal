@@ -1,12 +1,15 @@
-# Pomotime - JavaFX Port (preview)
+# PomotimeFinal
 
-This repository contains a JavaFX port of the Pomotime app.
+A Vite + React + Tailwind project scaffold for the Pomodoro app.
 
-Build & run (requires Java 17+ and Gradle):
-1. ./gradlew run
-2. Or build a jar: ./gradlew shadowJar (plug-in needed)
+Install dependencies and run locally:
 
-Notes:
-- Main entry: com.example.pomotime.MainApp
-- Timer logic: src/main/java/com/example/pomotime/PomodoroTimer.java
-- This is a minimal runnable prototype. We will add settings persistence, audio notifications, and packaging once you confirm.
+1. npm install
+2. npx tailwindcss init -p
+3. npm run dev
+
+This repository includes:
+- src/PomoTime.jsx (main component provided)
+- src/ai-utils.js (placeholder implementing generateQuiz and generateStudyPlan)
+- src/App.jsx (renders <PomoTime />)
+- Vite + Tailwind config / entry files
